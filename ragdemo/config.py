@@ -13,7 +13,7 @@ TOKENIZER_MODEL = "LiquidAI/LFM2.5-Embedding-350M"
 TOKENIZER_REVISION = "f35ae2c91d687658dbf1f2b449382f0b019b9808"
 TOP_K = 3
 # Bump when session-held classes or pipeline behavior change during development.
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 4
 
 
 @dataclass(frozen=True)

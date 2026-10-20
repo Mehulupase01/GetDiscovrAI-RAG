@@ -39,6 +39,48 @@ def test_pdf_conversion_and_outline():
     assert pages[0].outline == ("Refunds",)
 
 
+def test_pdf_font_headings_preserve_company_section_separate_from_instructions(budget):
+    from ragdemo.chunking import make_chunks
+
+    output = BytesIO()
+    canvas = Canvas(output)
+    canvas.setFont("Helvetica", 21)
+    canvas.drawString(72, 750, "System design challenge")
+    canvas.setFont("Helvetica", 12)
+    canvas.drawString(72, 710, "How the call works")
+    canvas.setFont("Helvetica", 10)
+    canvas.drawString(
+        72, 685, "Have a diagram ready. This paragraph describes the interview process."
+    )
+    canvas.setFont("Helvetica", 12)
+    canvas.drawString(72, 650, "The scenario")
+    canvas.setFont("Helvetica", 10)
+    canvas.drawString(72, 625, "VeloNord is a fictional e-bike company with about 800 employees.")
+    canvas.drawString(72, 605, "The company sells through bike dealers and uses Microsoft 365.")
+    canvas.setFont("Helvetica", 12)
+    canvas.drawString(72, 565, "Your task")
+    canvas.setFont("Helvetica", 10)
+    canvas.drawString(72, 540, "Design a system that helps people find important changes early.")
+    canvas.save()
+    pages = read_pdf(output.getvalue(), Settings(api_key=""))
+    assert "###" not in pages[0].text  # Only two detected heading sizes in this fixture.
+    assert "## The scenario" in pages[0].text
+    chunks, _ = make_chunks(pages, budget)
+    definition = next(chunk for chunk in chunks if "800 employees" in chunk.text)
+    assert definition.section.endswith("The scenario")
+    assert "Have a diagram" not in definition.text
+    assert "Design a system" not in definition.text
+
+
+def test_missing_pdf_layout_metadata_falls_back_to_complete_text(monkeypatch):
+    def broken_layout(*args, **kwargs):
+        raise ValueError("Missing font metadata")
+
+    monkeypatch.setattr("ragdemo.ingest.pdfplumber.open", broken_layout)
+    pages = read_pdf(make_pdf(), Settings(api_key=""))
+    assert "30 days" in pages[0].text
+
+
 @pytest.mark.parametrize("kwargs", [{"scan": True}, {"mixed": True}])
 def test_scanned_or_mixed_pdf_rejected(kwargs):
     with pytest.raises(DemoError, match="scanned|image-only"):

@@ -1,11 +1,68 @@
+import re
+import unicodedata
+from collections import Counter
 from io import BytesIO
 
+import pdfplumber
 from markitdown import MarkItDown, StreamInfo
 from pypdf import PdfReader, PdfWriter
 
 from ragdemo.config import Settings
 from ragdemo.errors import DemoError
 from ragdemo.models import Page
+
+
+def _heading_key(text: str) -> str:
+    text = re.sub(r"^[#*\s]+|[*\s]+$", "", text)
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text)).strip()
+
+
+def _layout_headings(data: bytes, page_count: int) -> list[dict[str, str]]:
+    """Recover larger-font headings that plain PDF-to-Markdown conversion flattens.
+
+    Font structure is metadata only. If unavailable, retain the converter's complete
+    text and existing outline/numbered-heading fallback rather than inventing headings.
+    """
+    try:
+        candidates: list[list[tuple[str, float]]] = []
+        with pdfplumber.open(BytesIO(data)) as document:
+            for page in document.pages:
+                sizes = Counter(
+                    round(char["size"], 1)
+                    for char in page.chars
+                    if char.get("text", "").isalpha() and isinstance(char.get("size"), (int, float))
+                )
+                body_size = sizes.most_common(1)[0][0] if sizes else 0
+                headings = []
+                for line in page.extract_text_lines():
+                    text = line["text"].strip()
+                    letter_sizes = [
+                        round(char["size"], 1)
+                        for char in line["chars"]
+                        if char.get("text", "").isalpha()
+                        and isinstance(char.get("size"), (int, float))
+                    ]
+                    size = max(letter_sizes, default=0)
+                    if (
+                        body_size
+                        and size > body_size * 1.08
+                        and len(text) <= 120
+                        and len(text.split()) <= 18
+                    ):
+                        headings.append((text, size))
+                candidates.append(headings)
+        levels = {
+            size: min(index + 1, 6)
+            for index, size in enumerate(
+                sorted({size for page in candidates for _, size in page}, reverse=True)
+            )
+        }
+        return [
+            {_heading_key(text): "#" * levels[size] + " " + text for text, size in page}
+            for page in candidates
+        ]
+    except Exception:
+        return [{} for _ in range(page_count)]
 
 
 def read_text(text: str, settings: Settings) -> list[Page]:
@@ -39,6 +96,7 @@ def read_pdf(data: bytes, settings: Settings) -> list[Page]:
                         outlines.setdefault(index, []).append(str(item.title))
 
         collect(reader.outline)
+        layout_headings = _layout_headings(data, len(reader.pages))
         converter = MarkItDown(enable_plugins=False)
         pages = []
         total = 0
@@ -65,6 +123,10 @@ def read_pdf(data: bytes, settings: Settings) -> list[Page]:
                 raise DemoError(
                     f"Text extraction failed on page {index + 1}. Try a simpler text PDF."
                 )
+            converted = "\n".join(
+                layout_headings[index].get(_heading_key(line), line)
+                for line in converted.splitlines()
+            )
             total += len(converted)
             if total > settings.max_chars:
                 raise DemoError(f"Extracted PDF text exceeds {settings.max_chars:,} characters.")

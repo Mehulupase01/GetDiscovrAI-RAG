@@ -2,13 +2,34 @@
 
 Verified on 20 October 2026 with Python 3.12 on Windows.
 
+## Supplied-PDF follow-up
+
+The user's actual two-page PDF was subsequently inspected visually and extracted locally.
+The original PDF and inspection images are not committed or uploaded to GitHub.
+
+- Protected ingestion preserved the company name and excluded **zero** blocks.
+- The exact question `what is Velnord ?` matched the indexed `velonord` term after correction.
+- The PDF's visible headings were flattened by conversion. Font-size metadata now restores
+  the heading hierarchy before privacy processing and chunking, producing eight chunks.
+- Definition questions previously could select three incidental mentions while omitting
+  the company introduction. Eligible direct-definition passages now get context priority.
+- With intentionally orthogonal test embeddings (cosine zero), the supplied PDF selected
+  its page-1 company definition first, with one lexical match. The full local protected
+  path returned a checked, cited result using a stubbed model response.
+- **104 automated tests passed**, including font heading/fallback and definition-selection
+  regressions. This local check is not claimed as a new live OpenRouter model run.
+
+Instructions describing the interview/design challenge inside the PDF were treated as
+reference content, not as instructions to carry out that separate challenge.
+
 ## Follow-up: zero lexical matches and VeloNord
 
 A later screenshot showed **VeloNord**, a fictional e-bike company, while the earlier question
 used **velnord** and the original fixture used a fictional Velnord search portal. Exact matching
 of `velnord` against `velonord` returns zero shared terms. The screenshot's debug candidates had
 cosines below the protected threshold, explaining why those rows would be rejected with
-protection enabled. The complete original input/question pair was not available for confirmation.
+protection enabled. At that stage the complete original input/question pair was not available;
+the supplied-PDF follow-up above subsequently confirmed the mismatch.
 
 The current fix resolves unique one-edit matches for long ordinary words and shows sanitized
 tokens, corrections, actual matched terms, rejected candidates, and context selection reasons.

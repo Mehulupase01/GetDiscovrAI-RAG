@@ -59,7 +59,11 @@ def show_answer(answer) -> None:
                         f"{source} → {target}" for source, target in answer.query_corrections
                     )
                 )
-            candidates = answer.candidates[:10]
+            selected_ids = {hit.chunk.id for hit in answer.retrieval}
+            candidates = (
+                list(answer.retrieval)
+                + [hit for hit in answer.candidates if hit.chunk.id not in selected_ids]
+            )[:10]
             if candidates:
                 selected = {hit.chunk.id for hit in answer.retrieval}
                 st.table(
@@ -71,6 +75,7 @@ def show_answer(answer) -> None:
                             "Matched tokens": ", ".join(hit.matched_terms) or "None",
                             "Fusion score": round(hit.fusion_score, 4),
                             "Used as context": hit.chunk.id in selected,
+                            "Direct definition": hit.definition_match,
                             "Selection reason": hit.reason,
                         }
                         for hit in candidates

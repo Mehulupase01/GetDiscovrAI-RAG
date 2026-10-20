@@ -34,6 +34,7 @@ class Hit:
     matched_terms: tuple[str, ...] = ()
     eligible: bool = True
     reason: str = ""
+    definition_match: bool = False
 
 
 @dataclass(frozen=True)

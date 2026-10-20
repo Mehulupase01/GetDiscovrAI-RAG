@@ -60,6 +60,27 @@ def _one_edit_away(first: str, second: str) -> bool:
     return shorter[index:] == longer[index + 1 :]
 
 
+def _definition_pattern(question: str, corrections: list[tuple[str, str]]) -> re.Pattern | None:
+    match = re.fullmatch(
+        r"\s*(?:what|who)\s+(?:is|are|was|were)\s+(.+?)\s*[?.]?\s*", question, re.I
+    )
+    if not match:
+        return None
+    subject = re.sub(r"^(?:a|an|the)\s+", "", match[1].rstrip("?. "), flags=re.I)
+    for original, replacement in corrections:
+        subject = re.sub(
+            r"(?<!\w)" + re.escape(original) + r"(?!\w)", replacement, subject, flags=re.I
+        )
+    if not subject or len(subject.split()) > 6:
+        return None
+    name = re.escape(subject).replace(r"\ ", r"\s+")
+    return re.compile(
+        r"(?<!\w)" + name + r"(?:\s*\([^\n)]{1,80}\))?\s+"
+        r"(?:is|are|was|were|makes|manufactures|provides|develops|sells)\b",
+        re.I,
+    )
+
+
 class HybridIndex:
     def __init__(self, chunks: list[Chunk], embeddings: list[list[float]]):
         matrix = normalized(embeddings)
@@ -133,7 +154,7 @@ class HybridIndex:
                     fusion[index] = fusion.get(index, 0.0) + 1 / (60 + rank)
         results = []
         candidates = []
-        seen = set()
+        definition = _definition_pattern(question, corrections)
         for index in sorted(fusion, key=lambda key: (-fusion[key], key)):
             matches = len(query_terms.intersection(self._tokens[index]))
             cosine = raw_cosines[index]
@@ -146,6 +167,7 @@ class HybridIndex:
                 or (not identity_only and cosine >= min_cosine)
             )
             chunk = self.chunks[index]
+            definition_match = definition is not None and definition.search(chunk.text) is not None
             matched_terms = tuple(sorted(query_terms.intersection(self._tokens[index])))
             if not apply_relevance_gate:
                 reason = "Debug: relevance gate bypassed"
@@ -157,10 +179,29 @@ class HybridIndex:
                 reason = "Rejected: anonymous identity not present in this chunk"
             else:
                 reason = f"Rejected: insufficient lexical overlap and cosine < {min_cosine:.2f}"
-            hit = Hit(chunk, cosine, matches, fusion[index], matched_terms, relevant, reason)
+            if definition_match and relevant:
+                reason = "Direct definition in passage; " + reason
+            hit = Hit(
+                chunk,
+                cosine,
+                matches,
+                fusion[index],
+                matched_terms,
+                relevant,
+                reason,
+                definition_match,
+            )
             candidates.append(hit)
+        # A short "what/who is" question needs a definition, not just incidental mentions.
+        # Preserve eligibility and RRF scores; select direct definitions first, then fill
+        # remaining context slots in ordinary hybrid order. No additional model is called.
+        seen = set()
+        for hit in sorted(
+            candidates, key=lambda item: not (item.eligible and item.definition_match)
+        ):
+            chunk = hit.chunk
             signature = re.sub(r"\s+", " ", chunk.text).strip().casefold()
-            if relevant and signature not in seen and len(results) < TOP_K:
+            if hit.eligible and signature not in seen and len(results) < TOP_K:
                 seen.add(signature)
                 results.append(hit)
         return SearchReport(tuple(results), tuple(candidates), original_terms, tuple(corrections))

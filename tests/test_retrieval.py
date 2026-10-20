@@ -109,6 +109,26 @@ def test_rejected_candidates_explain_zero_matching_terms_and_low_cosine():
     assert "cosine < 0.30" in report.candidates[0].reason
 
 
+def test_definition_is_not_displaced_by_short_incidental_company_mentions():
+    chunks = [
+        Chunk(
+            "C0001",
+            "VeloNord (a fictional company) makes e-bikes. It has about 800 employees. "
+            + "Dealers distribute the products across several markets. " * 10,
+            "The scenario",
+        ),
+        Chunk("C0002", "VeloNord uses Microsoft 365.", "Background"),
+        Chunk("C0003", "Ask VeloNord five questions.", "What to bring"),
+        Chunk("C0004", "Build a system for VeloNord.", "Your task"),
+    ]
+    index = HybridIndex(chunks, [vector(0)] * len(chunks))
+    report = index.search_report("what is Velnord ?", vector(1), 0.3)
+    assert len(report.hits) == 3
+    assert report.hits[0].chunk.id == "C0001"
+    assert report.hits[0].definition_match
+    assert "Direct definition" in report.hits[0].reason
+
+
 @pytest.mark.parametrize("vectors", [[[1, 0]], [[float("nan")] * 1024], [[0.0] * 1024]])
 def test_invalid_embeddings_rejected(vectors):
     with pytest.raises(DemoError):

@@ -222,6 +222,10 @@ Existing process environment variables override `.env`. The dashboard toggle ove
 - Microsoft [MarkItDown](https://github.com/microsoft/markitdown) converts individual pages locally into Markdown-like text.
 - Conversion plugins and external enrichment are disabled. Document-supplied URLs are not fetched.
 - Page numbers and outline labels become source metadata.
+- When font metadata is available, short lines larger than the page's body font become
+  Markdown headings. Font-size levels are consistent across pages, preserving sections
+  such as **The scenario** instead of flattening them into interview instructions.
+  Missing layout metadata falls back to the complete converter text and existing outlines.
 - An image-bearing page with little selectable text is conservatively classified as scanned; the upload is rejected rather than partially indexed. Blank pages may be skipped.
 
 Limits: **10 MiB**, **100 pages**, and **200,000 extracted characters**. Pasted text also has a 200,000-character limit. Questions are limited to 4,000 characters and must fit the embedding token budget.
@@ -278,6 +282,13 @@ Candidates qualify through meaningful lexical overlap or cosine similarity at le
 - Identity-only questions must match a supplied anonymous identity. Unknown `[PERSON_0002]` must not match another person's `[PERSON_0001]` merely because both embeddings represent people.
 
 Duplicate excerpts are removed. **Up to three** qualifying chunks reach the model. Three is a maximum: fewer are supplied when fewer qualify. This helps definitions, continuations, and exceptions split across passages, while keeping context small.
+
+For short **what/who is** questions, eligible passages containing a direct definition of
+the subject are selected first, then the remaining slots follow hybrid order. For example,
+`VeloNord (a fictional company) makes e-bikes` is more useful for that question than a
+short passage merely saying to ask VeloNord some interview questions. This is a local
+context-selection rule, not an additional model reranker. It never bypasses relevance
+or privacy checks, and the displayed RRF scores remain unchanged.
 
 Scores are not probabilities. Cosine thresholds are heuristics; fusion scores describe ordering, not factual confidence. The 0.30 default was checked on synthetic fixtures and should be re-evaluated for different document domains.
 
@@ -395,8 +406,8 @@ No relevant text or references found.
 
 A failed output inspection uses a separate withheld message. Raw rejected output is never displayed. Provider errors use fixed messages instead of exposing response bodies or secrets.
 
-Diagnostics show sanitized query tokens, any spelling matches, and up to ten ranked candidates,
-including rejected ones. Each row shows matched tokens, lexical-match count, cosine, fusion
+Diagnostics show sanitized query tokens, any spelling matches, and up to ten candidates,
+with selected context first and other ranked/rejected candidates afterward. Each row shows matched tokens, lexical-match count, cosine, fusion
 score, selection reason, and whether it was actually used as context. Zero lexical matches
 can be normal for a semantic-only hit. A debug-mode hit with zero matches and cosine below
 the threshold would be rejected in protected mode; the details now make that visible.
@@ -429,6 +440,7 @@ The suite uses the real local privacy engine and pinned tokenizer. OpenRouter re
 Coverage includes:
 
 - Text/PDF extraction, malformed/encrypted/scanned files, limits, outlines, page provenance.
+- Font-based PDF headings, metadata fallback, and direct-definition selection over incidental mentions.
 - Structural boundaries, heading/contents tags, overlap, Unicode, complete token budgets.
 - Small-corpus BM25, vector validation, fusion, deduplication, three-chunk limits.
 - Product names, single-term semantic queries, known anonymous identities, unknown people.
