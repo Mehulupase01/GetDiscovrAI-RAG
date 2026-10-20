@@ -1,0 +1,159 @@
+{
+  "safety_checks_enabled": true,
+  "top_k": 3,
+  "threshold": 0.3,
+  "passed": 16,
+  "total": 16,
+  "results": [
+    {
+      "question": "What is Velnord?",
+      "expected_section": "Velnord",
+      "passed": true,
+      "best_cosine": 0.5538,
+      "max_lexical_overlap": 1,
+      "selected_sections": [
+        "Demonstration Handbook > Velnord"
+      ]
+    },
+    {
+      "question": "Velnord",
+      "expected_section": "Velnord",
+      "passed": true,
+      "best_cosine": 0.6461,
+      "max_lexical_overlap": 1,
+      "selected_sections": [
+        "Demonstration Handbook > Velnord"
+      ]
+    },
+    {
+      "question": "Who is Alice Morgan?",
+      "expected_section": "Contacts",
+      "passed": true,
+      "best_cosine": 0.1333,
+      "max_lexical_overlap": 1,
+      "selected_sections": [
+        "Demonstration Handbook > Contacts"
+      ]
+    },
+    {
+      "question": "Who is Bob Stone?",
+      "expected_section": null,
+      "passed": true,
+      "best_cosine": 0.1209,
+      "max_lexical_overlap": 0,
+      "selected_sections": []
+    },
+    {
+      "question": "refunds",
+      "expected_section": "Refunds",
+      "passed": true,
+      "best_cosine": 0.4366,
+      "max_lexical_overlap": 1,
+      "selected_sections": [
+        "Demonstration Handbook > Refunds",
+        "Demonstration Handbook > Refunds > Exceptions"
+      ]
+    },
+    {
+      "question": "What is the refund deadline?",
+      "expected_section": "Refunds",
+      "passed": true,
+      "best_cosine": 0.3544,
+      "max_lexical_overlap": 1,
+      "selected_sections": [
+        "Demonstration Handbook > Refunds"
+      ]
+    },
+    {
+      "question": "How long do I have to get my money back?",
+      "expected_section": "Refunds",
+      "passed": true,
+      "best_cosine": 0.404,
+      "max_lexical_overlap": 1,
+      "selected_sections": [
+        "Demonstration Handbook > Refunds"
+      ]
+    },
+    {
+      "question": "What are the refund exceptions?",
+      "expected_section": "Exceptions",
+      "passed": true,
+      "best_cosine": 0.4437,
+      "max_lexical_overlap": 1,
+      "selected_sections": [
+        "Demonstration Handbook > Refunds > Exceptions",
+        "Demonstration Handbook > Refunds"
+      ]
+    },
+    {
+      "question": "How long does express shipping take?",
+      "expected_section": "Delivery",
+      "passed": true,
+      "best_cosine": 0.5579,
+      "max_lexical_overlap": 2,
+      "selected_sections": [
+        "Demonstration Handbook > Delivery"
+      ]
+    },
+    {
+      "question": "Does the warranty cover accidental damage?",
+      "expected_section": "Warranty",
+      "passed": true,
+      "best_cosine": 0.4993,
+      "max_lexical_overlap": 3,
+      "selected_sections": [
+        "Demonstration Handbook > Warranty"
+      ]
+    },
+    {
+      "question": "What is the contact email address?",
+      "expected_section": "Contacts",
+      "passed": true,
+      "best_cosine": 0.3307,
+      "max_lexical_overlap": 2,
+      "selected_sections": [
+        "Demonstration Handbook > Contacts"
+      ]
+    },
+    {
+      "question": "Explain volcanic eruptions.",
+      "expected_section": null,
+      "passed": true,
+      "best_cosine": 0.0622,
+      "max_lexical_overlap": 0,
+      "selected_sections": []
+    },
+    {
+      "question": "Who invented the airplane?",
+      "expected_section": null,
+      "passed": true,
+      "best_cosine": -0.1001,
+      "max_lexical_overlap": 0,
+      "selected_sections": []
+    },
+    {
+      "question": "Explain ocean currents.",
+      "expected_section": null,
+      "passed": true,
+      "best_cosine": -0.0083,
+      "max_lexical_overlap": 0,
+      "selected_sections": []
+    },
+    {
+      "question": "How do I bake a chocolate cake?",
+      "expected_section": null,
+      "passed": true,
+      "best_cosine": 0.0275,
+      "max_lexical_overlap": 0,
+      "selected_sections": []
+    },
+    {
+      "question": "What is the formula for nuclear fusion?",
+      "expected_section": null,
+      "passed": true,
+      "best_cosine": 0.0239,
+      "max_lexical_overlap": 0,
+      "selected_sections": []
+    }
+  ]
+}
