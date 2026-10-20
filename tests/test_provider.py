@@ -96,6 +96,41 @@ def test_missing_key_and_safe_provider_error_messages():
     )
 
 
+def test_exhausted_provider_quota_reports_reset_without_exposing_response_body():
+    response = httpx.Response(
+        429,
+        request=httpx.Request("POST", "https://openrouter.ai"),
+        headers={
+            "x-ratelimit-limit": "50",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": "1792540800000",
+        },
+    )
+    message = str(
+        _provider_error(APIStatusError("private upstream content", response=response, body=None))
+    )
+    assert "0 of 50" in message
+    assert "21 October 2026, 02:00 CEST" in message
+    assert "private" not in message
+
+
+def test_malformed_provider_reset_uses_generic_error():
+    response = httpx.Response(
+        429,
+        request=httpx.Request("POST", "https://openrouter.ai"),
+        headers={
+            "x-ratelimit-limit": "50",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": "not a timestamp",
+        },
+    )
+    message = str(
+        _provider_error(APIStatusError("private upstream content", response=response, body=None))
+    )
+    assert "quota" in message
+    assert "private" not in message
+
+
 def test_streamed_pii_stays_out_of_history_until_full_inspection(session, provider):
     session.ingest(
         text="# Refunds\n\nRefund requests are accepted within 30 days. Email alice@example.com."

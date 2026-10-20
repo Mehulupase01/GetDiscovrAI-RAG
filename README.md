@@ -167,6 +167,12 @@ Keep the terminal running. Stop with **Ctrl+C**. Restart after changing `.env`, 
 
 Try [examples/reference.md](examples/reference.md), which contains only synthetic data:
 
+For the fictional **VeloNord e-bike company** shown in the reported screenshot, use
+[examples/velonord-ebike.md](examples/velonord-ebike.md). This is a synthetic reconstruction
+of the visible introduction, not the full original document. It is different from the
+older **Velnord** search-portal fixture. `what is velnord?` against this e-bike reference
+now displays the spelling match `velnord → velonord`.
+
 | Question | Expected behavior |
 | --- | --- |
 | `What is Velnord?` | Explain the fictional search portal, with a citation |
@@ -242,6 +248,13 @@ BM25Plus scores shared terms while accounting for term frequency and passage len
 
 Stopwords such as `what`, `is`, and `the` are removed. Anonymous identities stay searchable: `[PERSON_0001]` becomes an internal `pii:person_0001` token. The original name is not restored to the index or provider request.
 
+Unknown ordinary alphabetic terms of at least six characters can match a **unique** indexed
+term one edit away (insertion, deletion, substitution, or adjacent transposition). For example,
+`velnord` can match `velonord`. Ambiguous corrections are skipped. Numbers, short words, and
+anonymous identity tokens are never fuzzy-matched. Corrections are local lexical search aids;
+the original sanitized question still goes to the model. Cosine similarity is still measured
+using that question, so a corrected lexical match can qualify even with a low cosine score.
+
 ### FAISS: meaning
 
 Liquid produces 1,024-dimensional document/question vectors. Normalization makes FAISS `IndexFlatIP` inner products equal cosine similarity. This is exact, in-process vector search; no FAISS server or disk index is used.
@@ -299,6 +312,10 @@ Answer:     [PERSON_0001] is the refund manager. [C0001]
 
 Detected values receive stable typed placeholders per document/session. Matching normalizes case and whitespace. The original-to-placeholder mapping stays in local memory; it is not sent to OpenRouter, written into FAISS, or used to restore names in answers.
 
+Each question gets a private copy of the indexed document's mapping. New classifications
+found in a question or generated answer do not change the document map or later questions.
+This prevents context-dependent NER decisions from poisoning subsequent retrieval.
+
 An anonymized entity still has useful facts. The model may describe its documented role/features using the placeholder. Redaction alone is not a reason to refuse.
 
 ### Where checks happen
@@ -348,6 +365,8 @@ Several different mechanisms could look like a broken privacy filter. They are n
 | Earlier problem | Cause | Fix |
 | --- | --- | --- |
 | Redacted-name questions retrieved nothing | After a name became `[PERSON_0001]`, retrieval removed that placeholder and remaining words were stopwords | Search retains the anonymous identity without restoring the name |
+| Zero matches for `velnord` against `VeloNord` | Exact word matching cannot equate these spellings; low cosine then fails the relevance gate | Unique one-edit matches are resolved locally and shown explicitly |
+| A later question behaved differently after a name variation | Question/output NER could add identities to the indexed document's shared map | Every request uses a copy of the fixed source map |
 | One-word questions failed despite semantic similarity | Every single-term question required exact lexical overlap | Ordinary terms may qualify semantically; identity-only questions still require the correct identity |
 | Useful product descriptions disappeared | A broad rule treated ordinary upload-to-server descriptions as exfiltration | Rules target sensitive-data transfer or imperative exfiltration, while benign descriptions stay indexable |
 | Citations failed around `Dr.` or `e.g.` | Punctuation splitting created false uncited sentences | A local English sentence tokenizer handles abbreviations/decimals; substantive claims still require citations |
@@ -376,7 +395,14 @@ No relevant text or references found.
 
 A failed output inspection uses a separate withheld message. Raw rejected output is never displayed. Provider errors use fixed messages instead of exposing response bodies or secrets.
 
-For selected passages, diagnostics show chunk IDs, cosine similarity, matching-term count, and fusion score. These explain selection but do not prove correctness. Citation validation checks source membership and sentence coverage, **not semantic entailment** of every statement.
+Diagnostics show sanitized query tokens, any spelling matches, and up to ten ranked candidates,
+including rejected ones. Each row shows matched tokens, lexical-match count, cosine, fusion
+score, selection reason, and whether it was actually used as context. Zero lexical matches
+can be normal for a semantic-only hit. A debug-mode hit with zero matches and cosine below
+the threshold would be rejected in protected mode; the details now make that visible.
+
+These diagnostics do not prove correctness. Citation validation checks source membership and
+sentence coverage, **not semantic entailment** of every statement.
 
 ## Streaming and response time
 
@@ -406,6 +432,8 @@ Coverage includes:
 - Structural boundaries, heading/contents tags, overlap, Unicode, complete token budgets.
 - Small-corpus BM25, vector validation, fusion, deduplication, three-chunk limits.
 - Product names, single-term semantic queries, known anonymous identities, unknown people.
+- Unique spelling corrections with weak/zero semantic scores, ambiguous spellings, and rejected-candidate diagnostics.
+- Request-scoped privacy maps that cannot change the indexed source or subsequent requests.
 - Supported PII types, obfuscated contacts, case/whitespace variation, protection failures.
 - Injection payloads, benign product descriptions, encoded commands, unsafe output.
 - Citation membership, uncited claims, abbreviations, decimals, formatting labels.
@@ -447,7 +475,7 @@ See [docs/validation.md](docs/validation.md) for recorded results and [docs/retr
 | Scanned PDF rejected | Upload selectable-text, unencrypted PDF; OCR is unsupported |
 | PDF content missing/reordered | Inspect previews; complex layouts may need simpler text exports |
 | OpenRouter 401/403 | Check key, account access, model permissions |
-| OpenRouter 429 | Provider quota/capacity is busy; retry later or inspect account limits |
+| OpenRouter 429 | Inspect the message: when supplied by OpenRouter, remaining requests and the reset time are shown in Europe/Berlin; a zero quota cannot be fixed by disabling safety |
 | OpenRouter 402 | Account/provider requires credits or routing changes; no automatic model substitution occurs |
 | Model/request unavailable | Verify exact current model IDs and route availability |
 | Port 8501 occupied | Stop the old instance or explicitly select a different Streamlit port |

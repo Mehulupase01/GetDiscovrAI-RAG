@@ -53,6 +53,62 @@ def test_redacted_identity_is_searchable_without_exposing_value():
     assert index.search("Who is [PERSON_0003]?", vector(0), 0.5) == []
 
 
+@pytest.mark.parametrize(
+    "question", ["what is velnord?", "what is velonrod?", "what is velonordd?"]
+)
+def test_unique_brand_typo_matches_lexically_even_with_low_cosine(question):
+    index = HybridIndex(
+        [
+            Chunk("C0001", "VeloNord is a fictional e-bike company with 800 employees.", "Company"),
+        ],
+        [vector(0)],
+    )
+    report = index.search_report(question, vector(1), 0.3)
+    assert len(report.hits) == 1
+    assert report.hits[0].cosine == 0
+    assert report.hits[0].lexical_matches == 1
+    assert report.hits[0].matched_terms == ("velonord",)
+    assert report.corrections
+    assert report.hits[0].eligible
+
+
+def test_ambiguous_spelling_correction_is_not_applied():
+    index = HybridIndex(
+        [
+            Chunk("C0001", "Velonord and Velinord are product names.", "Products"),
+        ],
+        [vector(0)],
+    )
+    report = index.search_report("velanord", vector(1), 0.3)
+    assert not report.hits
+    assert not report.corrections
+
+
+@pytest.mark.parametrize("question", ["[PERSON_0002]", "801", "tim"])
+def test_spelling_never_matches_private_ids_numbers_or_short_names(question):
+    index = HybridIndex(
+        [
+            Chunk("C0001", "[PERSON_0001] and Tom manage 800 employees.", "Contacts"),
+        ],
+        [vector(0)],
+    )
+    report = index.search_report(question, vector(1), 0.3)
+    assert not report.hits
+    assert not report.corrections
+
+
+def test_rejected_candidates_explain_zero_matching_terms_and_low_cosine():
+    index = HybridIndex([Chunk("C0001", "VeloNord makes e-bikes.", "Company")], [vector(0)])
+    report = index.search_report("volcanic eruptions", vector(1), 0.3)
+    assert not report.hits
+    assert report.query_terms == ("eruptions", "volcanic")
+    assert len(report.candidates) == 1
+    assert not report.candidates[0].eligible
+    assert report.candidates[0].lexical_matches == 0
+    assert not report.candidates[0].matched_terms
+    assert "cosine < 0.30" in report.candidates[0].reason
+
+
 @pytest.mark.parametrize("vectors", [[[1, 0]], [[float("nan")] * 1024], [[0.0] * 1024]])
 def test_invalid_embeddings_rejected(vectors):
     with pytest.raises(DemoError):

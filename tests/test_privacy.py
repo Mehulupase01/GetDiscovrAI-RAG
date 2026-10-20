@@ -85,3 +85,25 @@ def test_names_keep_identity_across_case_and_whitespace(analyzer):
     assert "[PERSON_0001]" in source
     assert "[PERSON_0001]" in query
     assert "alice" not in query.casefold()
+
+
+def test_request_classification_cannot_change_indexed_document_identity_map(analyzer):
+    source = PrivacyGuard(analyzer)
+    source.redact("VeloNord is a fictional e-bike company in Germany.")
+    request = source.fork()
+    assert "LOCATION" in request.redact("What is Velo Nord?")
+    assert not source.contains_known_pii("VeloNord")
+    # This previously failed the residual-PII check after the spaced query polluted the map.
+    assert source.fork().redact("What is Velo-Nord?") == "What is Velo-Nord?"
+    assert source.fork().redact("What is VeloNord?") == "What is VeloNord?"
+
+
+def test_request_fork_keeps_original_private_identity_bindings(analyzer):
+    source = PrivacyGuard(analyzer)
+    source.redact("Alice Morgan is the support manager. Email alice@example.com.")
+    first, second = source.fork(), source.fork()
+    assert first.redact("Who is Alice Morgan?") == second.redact("Who is Alice Morgan?")
+    first.redact("Bob Stone handles deliveries.")
+    assert not source.contains_known_pii("Bob Stone")
+    assert not second.contains_known_pii("Bob Stone")
+    assert source.contains_known_pii("Alice Morgan")

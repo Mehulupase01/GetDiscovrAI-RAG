@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from time import monotonic
+from zoneinfo import ZoneInfo
 
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 
@@ -22,6 +24,24 @@ def _provider_error(exc: Exception) -> DemoError:
                 "OpenRouter rejected access. Check your API key and model permissions."
             )
         if exc.status_code == 429:
+            headers = exc.response.headers
+            limit = headers.get("x-ratelimit-limit", "")
+            remaining = headers.get("x-ratelimit-remaining", "")
+            reset = headers.get("x-ratelimit-reset", "")
+            if remaining == "0" and limit.isdigit() and reset.isdigit():
+                try:
+                    timestamp = int(reset)
+                    if timestamp > 100_000_000_000:
+                        timestamp /= 1000
+                    local = datetime.fromtimestamp(timestamp, timezone.utc).astimezone(
+                        ZoneInfo("Europe/Berlin")
+                    )
+                    return DemoError(
+                        f"OpenRouter quota exhausted: 0 of {int(limit)} requests remaining. "
+                        f"Provider reset: {local:%d %B %Y, %H:%M %Z} (Europe/Berlin)."
+                    )
+                except (ValueError, OverflowError, OSError):
+                    pass
             return DemoError(
                 "OpenRouter's free-provider quota is busy or exhausted. Try again later."
             )

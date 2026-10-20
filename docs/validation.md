@@ -2,6 +2,29 @@
 
 Verified on 20 October 2026 with Python 3.12 on Windows.
 
+## Follow-up: zero lexical matches and VeloNord
+
+A later screenshot showed **VeloNord**, a fictional e-bike company, while the earlier question
+used **velnord** and the original fixture used a fictional Velnord search portal. Exact matching
+of `velnord` against `velonord` returns zero shared terms. The screenshot's debug candidates had
+cosines below the protected threshold, explaining why those rows would be rejected with
+protection enabled. The complete original input/question pair was not available for confirmation.
+
+The current fix resolves unique one-edit matches for long ordinary words and shows sanitized
+tokens, corrections, actual matched terms, rejected candidates, and context selection reasons.
+Private IDs/numbers/short or ambiguous words cannot be fuzzy-matched. A separate reproduced
+bug allowed a question's NER classification to pollute the source mapping; mappings are now
+copied per request. The new e-bike fixture is `examples/velonord-ebike.md`.
+
+The protected spelling regression is tested with orthogonal fake embeddings (cosine zero):
+`what is velnord?` finds `velonord` with one lexical match and produces a checked answer.
+The follow-up suite contains **101 passing tests**, including the dashboard's correction and
+rejection tables and safe provider quota/reset messages.
+Live re-verification of this follow-up was blocked by OpenRouter HTTP 429. The provider reported
+limit 50, remaining 0, reset **21 October 2026, 02:00 Europe/Berlin**. No paid/provider fallback
+was used. The earlier live results below are historical and are not claimed as live validation
+of the spelling follow-up.
+
 ## Current behavior
 
 - Protected mode is enabled in the published example configuration and local environment.
@@ -17,7 +40,7 @@ The automated suite covers the real local Presidio/spaCy engine and pinned Liqui
 OpenRouter is mocked in ordinary tests. Lint, formatting, and lock consistency are checked too.
 GitHub Actions runs these checks without an OpenRouter key.
 
-Latest local result: **86 tests passed**; Ruff lint and format checks and `uv lock --check`
+Original protected-release result: **86 tests passed**; Ruff lint and format checks and `uv lock --check`
 passed. A birth-date regression also verifies that a detected date cannot reappear in an
 answer merely by omitting its original DOB label.
 

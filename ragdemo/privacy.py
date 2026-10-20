@@ -76,6 +76,18 @@ class PrivacyGuard:
         self._counts: dict[str, int] = defaultdict(int)
         self.redaction_count = 0
 
+    def fork(self) -> "PrivacyGuard":
+        """Seed one request from the indexed source without changing its identity map.
+
+        Query/output NER can classify a word differently from source NER. Such a decision
+        must not poison later queries or create anonymous IDs absent from the existing index.
+        """
+        guard = PrivacyGuard(self._analyzer)
+        guard._known = self._known.copy()
+        guard._counts = defaultdict(int, self._counts)
+        guard.redaction_count = self.redaction_count
+        return guard
+
     def _placeholder(self, entity: str, value: str) -> str:
         key = re.sub(r"\s+", " ", canonical(value)).casefold().strip()
         if key not in self._known:

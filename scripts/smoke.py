@@ -80,6 +80,27 @@ def main() -> int:
                 "Smoke test: excluding the injected document block prevented a valid answer."
             )
         print("Injected document: malicious block excluded; refund answer passed inspection.")
+        session.ingest(text=Path("examples/velonord-ebike.md").read_text(encoding="utf-8"))
+        for question in ("what is velnord?", "What is VeloNord?"):
+            _, answer = session.ask(question)
+            if answer.status != "answered" or not any(
+                hit.lexical_matches for hit in answer.retrieval
+            ):
+                raise DemoError(
+                    "Smoke test: protected VeloNord retrieval failed or had no lexical match."
+                )
+            if (
+                question == "what is velnord?"
+                and ("velnord", "velonord") not in answer.query_corrections
+            ):
+                raise DemoError("Smoke test: the VeloNord spelling mismatch was not explained.")
+            if "800" not in answer.text or "bike" not in answer.text.casefold():
+                raise DemoError(
+                    "Smoke test: the VeloNord answer did not use its company introduction."
+                )
+            print(
+                "Protected VeloNord question passed; lexical match and spelling diagnostics verified."
+            )
         session.clear()
         print("Live smoke test passed.")
         return 0

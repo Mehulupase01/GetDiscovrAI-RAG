@@ -44,7 +44,7 @@ def main() -> int:
         provider = OpenRouterProvider(settings)
         session = RagSession(settings, provider, TokenBudget.load(), lambda: PrivacyGuard(analyzer))
         session.ingest(text=Path("examples/reference.md").read_text(encoding="utf-8"))
-        questions = [session.guard.redact(question) for question, _ in CASES]
+        questions = [session.guard.fork().redact(question) for question, _ in CASES]
         vectors = provider.embed(["query: " + question for question in questions])
         results = []
         for (original, section), question, vector in zip(CASES, questions, vectors, strict=True):

@@ -8,7 +8,7 @@ from ragdemo.chunking import TokenBudget, make_chunks
 from ragdemo.config import PIPELINE_VERSION, Settings
 from ragdemo.errors import BLOCKED_REQUEST, NO_REFERENCES, WITHHELD, DemoError
 from ragdemo.ingest import read_pdf, read_text
-from ragdemo.models import Answer, Chunk, Conversation, Page
+from ragdemo.models import Answer, Chunk, Conversation, Page, SearchReport
 from ragdemo.privacy import PrivacyGuard
 from ragdemo.provider import Completion
 from ragdemo.retrieval import HybridIndex
@@ -113,7 +113,9 @@ class RagSession:
             raise DemoError("Keep the question below 4,000 characters.")
         started = monotonic()
         hits = []
-        clean_question = self.guard.redact(question.strip()) if self.guard else question.strip()
+        report = SearchReport()
+        guard = self.guard.fork() if self.guard else None
+        clean_question = guard.redact(question.strip()) if guard else question.strip()
         if self.settings.safety_checks_enabled and (
             suspicious(question) or suspicious(clean_question)
         ):
@@ -129,12 +131,13 @@ class RagSession:
                     "The question is too long for the embedding model. Please shorten it."
                 )
             vectors = self.provider.embed([query_input])
-            hits = self.index.search(
+            report = self.index.search_report(
                 clean_question,
                 vectors[0],
                 self.settings.min_cosine,
                 apply_relevance_gate=self.settings.safety_checks_enabled,
             )
+            hits = list(report.hits)
             if not hits:
                 answer = Answer(
                     NO_REFERENCES,
@@ -164,9 +167,9 @@ class RagSession:
                     )
                 else:
                     # No raw generated token reaches a UI, history, or logging callback.
-                    safe = self.guard.redact(raw, citation_ids={chunk.id for chunk in chunks})
+                    safe = guard.redact(raw, citation_ids={chunk.id for chunk in chunks})
                     reason = ""
-                    if self.guard.contains_known_pii(safe):
+                    if guard.contains_known_pii(safe):
                         reason = "Detected personal data remained after output redaction."
                     elif unsafe_output(raw) or unsafe_output(safe):
                         reason = "The generated answer contained an instruction override, URL, or active markup."
@@ -188,6 +191,12 @@ class RagSession:
                                 else ""
                             ),
                         )
-        answer = replace(answer, retrieval=tuple(hits))
+        answer = replace(
+            answer,
+            retrieval=tuple(hits),
+            candidates=report.candidates,
+            query_terms=report.query_terms,
+            query_corrections=report.corrections,
+        )
         self.conversation.messages.append((clean_question, answer))
         return clean_question, answer

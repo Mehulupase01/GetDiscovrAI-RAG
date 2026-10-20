@@ -46,17 +46,40 @@ def show_answer(answer) -> None:
     if answer.detail:
         with st.expander("Answer details"):
             st.text(answer.detail)
-            if answer.retrieval:
+            if answer.query_terms:
+                st.text("Sanitized search tokens: " + ", ".join(answer.query_terms))
+            else:
+                st.caption(
+                    "No searchable terms remained, or the question was blocked before retrieval."
+                )
+            if answer.query_corrections:
+                st.text(
+                    "Spelling matches: "
+                    + "; ".join(
+                        f"{source} → {target}" for source, target in answer.query_corrections
+                    )
+                )
+            candidates = answer.candidates[:10]
+            if candidates:
+                selected = {hit.chunk.id for hit in answer.retrieval}
                 st.table(
                     [
                         {
                             "Chunk": hit.chunk.id,
                             "Cosine similarity": round(hit.cosine, 3),
-                            "Matching terms": hit.lexical_matches,
+                            "Lexical matches": hit.lexical_matches,
+                            "Matched tokens": ", ".join(hit.matched_terms) or "None",
                             "Fusion score": round(hit.fusion_score, 4),
+                            "Used as context": hit.chunk.id in selected,
+                            "Selection reason": hit.reason,
                         }
-                        for hit in answer.retrieval
+                        for hit in candidates
                     ]
+                )
+                st.caption(
+                    "Lexical matches count shared search tokens after displayed spelling corrections. "
+                    "Zero can be valid for a semantic-only match. Rejected candidates are shown too; "
+                    "only rows marked as context were sent to the chat model."
                 )
     if answer.safe_answer_seconds is not None:
         st.caption(

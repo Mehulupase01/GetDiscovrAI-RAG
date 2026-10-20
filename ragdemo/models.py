@@ -31,6 +31,17 @@ class Hit:
     cosine: float
     lexical_matches: int
     fusion_score: float
+    matched_terms: tuple[str, ...] = ()
+    eligible: bool = True
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class SearchReport:
+    hits: tuple[Hit, ...] = ()
+    candidates: tuple[Hit, ...] = ()
+    query_terms: tuple[str, ...] = ()
+    corrections: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -42,6 +53,9 @@ class Answer:
     status: str = "answered"
     detail: str = ""
     retrieval: tuple[Hit, ...] = ()
+    query_terms: tuple[str, ...] = ()
+    query_corrections: tuple[tuple[str, str], ...] = ()
+    candidates: tuple[Hit, ...] = ()
 
 
 @dataclass

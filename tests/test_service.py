@@ -104,14 +104,14 @@ def test_embedding_failure_and_privacy_failure_leave_no_index(session, provider)
 
 def test_output_privacy_failure_never_enters_history(session, provider, monkeypatch):
     session.ingest(text=REFERENCE)
-    original = session.guard.redact
+    original = type(session.guard).redact
 
-    def broken_output(text, **kwargs):
+    def broken_output(self, text, **kwargs):
         if "[C0001]" in text:
             raise DemoError("Privacy inspection failed")
-        return original(text, **kwargs)
+        return original(self, text, **kwargs)
 
-    monkeypatch.setattr(session.guard, "redact", broken_output)
+    monkeypatch.setattr(type(session.guard), "redact", broken_output)
     with pytest.raises(DemoError, match="Privacy inspection failed"):
         session.ask("What is the refund deadline?")
     assert not session.conversation.messages
@@ -182,3 +182,40 @@ def test_benign_product_description_is_not_removed_by_injection_rules(session, p
     _, answer = session.ask("What is Velnord?")
     assert answer.status == "answered"
     assert provider.prompts
+
+
+def test_protected_ebike_spelling_question_works_with_no_semantic_match(
+    session, provider, monkeypatch
+):
+    session.ingest(text="# Company\n\nVeloNord is a fictional e-bike company with 800 employees.")
+    original_embed = provider.embed
+
+    def weak_query_embeddings(texts):
+        values = original_embed(texts)
+        for index, text in enumerate(texts):
+            if text.startswith("query: "):
+                values[index] = [0.0] * 1024
+                values[index][20] = 1.0
+        return values
+
+    monkeypatch.setattr(provider, "embed", weak_query_embeddings)
+    provider.response = "VeloNord is a fictional e-bike company with 800 employees. [C0001]"
+    _, answer = session.ask("what is velnord?")
+    assert answer.status == "answered"
+    assert answer.query_terms == ("velnord",)
+    assert answer.query_corrections == (("velnord", "velonord"),)
+    assert answer.retrieval[0].cosine == 0
+    assert answer.retrieval[0].matched_terms == ("velonord",)
+    assert provider.prompts
+
+
+def test_unknown_question_identity_does_not_poison_later_company_queries(session, provider):
+    session.ingest(text="# Company\n\nVeloNord is a fictional e-bike company.")
+    source_guard = session.guard
+    _, unknown = session.ask("What is Velo Nord?")
+    assert unknown.status == "no_retrieval"
+    assert not source_guard.contains_known_pii("VeloNord")
+    provider.response = "VeloNord is a fictional e-bike company. [C0001]"
+    _, answer = session.ask("What is VeloNord?")
+    assert answer.status == "answered"
+    assert answer.retrieval[0].lexical_matches == 1
